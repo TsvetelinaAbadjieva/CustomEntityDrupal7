@@ -1,0 +1,143 @@
+<?php
+
+function video_entity_info(){
+ return array(
+	'video' => array(
+		'label'=>t('video'),
+		'base table' => 'video',
+		'entity keys'=> array(
+			'id' => 'id',
+			'label' => 'name',
+		),
+		'uri callback' => 'entity_class_uri',//goes to the VideoEntity class
+		'entity class' => 'VideoEntity',//ext. Entity
+		'controller class' => 'VideoEntityContoller', //ext. EntityApiController
+		'admin ui' => array(
+			'path' => 'admin/content/video',
+			'controller class' => 'VideoUIController',//ext, EntityDefaultUIController
+			'menu wildcard' => '%video',
+			'file' => 'video.admin.inc', //construct entity_form()
+		),
+		'module' => 'video',
+		'access callback' => 'video_access_callback',
+		'fieldable' => true,
+		'bundles' => array(
+			'video' => array(
+				'label' => t('Video'),
+				'admin' => array(
+					'path' => 'admin/video',//bundles use the same video_form method from the admin class
+					'access arguments' => array('administer video')
+				),
+			),
+		),
+		'views controller class' => 'EntityDefaultViewsController',
+		'view modes' => array(
+			'as_teaser' => array(
+				'label' => t('As teaser'),
+				'custom settings' => false,
+			), 
+			'as_full' => array(
+				'label' => t('As full'),
+				'custom settings' => false,
+			), 
+		),
+	),
+ );
+}
+
+function video_menu(){
+	$items = [];
+	$items['video/%video'] = array(
+		'title' => t('Video Details'),
+		'page callback' => 'view_video_details',
+		'page arguments'=> array(1),
+		'access callback'=> true,
+		'menu' => 'navigation',
+	);
+	$items['video/%video'] = array(
+		'title' => t('Video Details'),
+		'page callback' => 'view_video_entity',
+		'page arguments'=> array(1),
+		'access callback'=> true,
+		'menu' => 'navigation',
+	);
+
+	return $items;
+}
+
+function video_permission(){
+	return array(
+		'view video' => array('title' => t('Access view video')),
+		'administer video' => array('title' => t('Administer video')),
+	);
+}
+
+function video_access_callback($op, $video = null, $account = null){
+
+ $has_access = false;	
+
+ switch($op){
+ 	case 'view':
+ 		$has_access = (user_access('view video', $account) || 
+ 					   user_access('administer video', $account)) ? true:  false;
+ 		break;
+ 	case 'edit':
+ 		$has_access = user_access('administer video', $account)? true:  false;
+ 		break;
+ }
+ return $has_access;
+}
+
+function view_video_entity($video){
+	if(isset($video)){
+	drupal_set_title($video->label);
+	$entity = entity_view('video', array($video->id => $video), 'as_full');
+	}
+
+}
+class VideoEntity extends Entity{
+
+	protected  function defaultUri(){
+		return array('path'=> 'video/'.$this->identifier());
+	}
+}
+
+class VideoEntityController extends EntityApiController{
+
+	public  function buildEntity($entity, $view_mode = 'as_full', $langcode =null, $content = array() ){
+
+		$build = parent::buildContent($entity, $view_mode , $langcode, $content);
+
+		$build['duration'] = array(
+			'#type' => 'markup',
+			'#markup' => format_interval($entity->duration),
+		);
+
+		if($view_mode == 'as_full'){
+
+			$build['link'] = array(
+				'#type' => 'markup',
+				'#markup' => '<iframe width="600px" heigth="400px" src="http://www.youtube.com/embed/'.l(t($entity->link)).'" border="1px" allowfullscreen></iframe>',
+			);
+		} else {
+			$build['link'] = array(
+				'#type' => 'markup',
+				'#markup' => '<a width="600px" heigth="400px" src="http://www.youtube.com/watch?v='
+				.l(t($entity->link)).'"></a>',
+			);
+		}
+	}
+
+	public function save($entity, Databasetransaction $transaction = null){
+
+		if($entity->is_new()){
+			$entity->created_at = REQUEST_TIME;
+		}
+		$entity->updated_at = REQUEST_TIME;
+		return parent::save($entity, $transaction);
+	}
+}
+
+class VideoEntityUIController extends EntityDefaultUIController{
+
+}
